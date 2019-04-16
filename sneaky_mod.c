@@ -44,7 +44,7 @@ void (*pages_ro)(struct page *page, int numpages) = (void *)0xffffffff81071fc0;
 //This is a pointer to the system call table in memory
 //Defined in /usr/src/linux-source-3.13.0/arch/x86/include/asm/syscall.h
 //We're getting its adddress from the System.map file (see above).
-static unsigned long *sys_call_table = (unsigned long*)0xffffffff81a01560;
+static unsigned long *sys_call_table = (unsigned long*)0xffffffff81a00200;
 
 
 
