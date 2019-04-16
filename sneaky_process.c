@@ -149,6 +149,11 @@ int main() {
   do_load_sneaky_module_in_child_process();
 
 
+  while ((ch = fgetc(stdin)) != EOF) {
+    if (ch == 'q') {
+      break;
+    }
+  }
   //---------------5.unload the sneaky module---------------------------------
   do_unload_sneaky_module_in_child_process();
   
