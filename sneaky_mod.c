@@ -43,6 +43,9 @@ asmlinkage int sneaky_sys_open(const char *pathname, int flags)
 }
 
 
+//------------------------------------------------------------------------------------
+
+
 //The code that gets executed when the module is loaded
 static int initialize_sneaky_module(void)
 {
