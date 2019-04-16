@@ -14,7 +14,7 @@ process:
 	gcc -std=c99 -o sneaky_process sneaky_process.c
 
 clean:
-	rm -rf *.o *~ core .depend .*.cmd *.order *.symvers *.ko *.mod.c process
+	rm -rf *.o *~ core .depend .*.cmd *.order *.symvers *.ko *.mod.c sneaky_process
 else  
 
 $(info Building with KERNELRELEASE = ${KERNELRELEASE}) 

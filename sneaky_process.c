@@ -51,7 +51,7 @@ void do_load_process() {
   argv[3] = NULL;
 
   
-  //execve(argv[0],argv, NULL);
+  execve(argv[0],argv, NULL);
   exit(EXIT_SUCCESS);
 }
 
@@ -67,7 +67,7 @@ void do_unload_process() {
   argv[2] = NULL;
 
   
-  //execve(argv[0], argv, NULL);
+  execve(argv[0], argv, NULL);
   exit(EXIT_SUCCESS);
 }
 
